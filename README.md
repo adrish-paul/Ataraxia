@@ -8,7 +8,7 @@ Featuring the custom **Lunaflora Design Language**, Ataraxia delivers a premium,
 
 ## 🎨 The Lunaflora Design Language
 
-Ataraxia is powered by Lunaflora, a design aesthetic focused on tranquility, organic shapes, and minimalist UI components. It features five distinct, hand-curated theme packs that change accent colors, illustrations, and background rendering dynamically:
+Ataraxia is powered by Lunaflora, a design aesthetic focused on tranquility, organic shapes, and minimalist UI components. It features six distinct theme packs that change accent colors, illustrations, and background rendering dynamically:
 
 *   💮 **Serene:** A clean, soft light mode designed for maximum legibility.
 *   🌸 **Sakura:** A gorgeous pink-accented light mode with a custom background image (`sakura_bg.png`).
