@@ -68,8 +68,8 @@ Ataraxia is built on top of Google's recommended Android app architecture:
 *   **Configuration Storage:** Preferences DataStore (highly efficient key-value preferences caching)
 *   **Navigation:** Navigation Compose (with custom screen-slide animation configurations)
 *   **Design Tokens:** Semantic theme variables linked directly to system color schemes
-*   **Min SDK:** Android 12 (API 31)
-*   **Target SDK:** Android 14 (API 34)
+*   **Min SDK:** Android 12 
+*   **Target SDK:** Android 16
 
 ---
 
