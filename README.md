@@ -72,25 +72,3 @@ Ataraxia is built on top of Google's recommended Android app architecture:
 *   **Target SDK:** Android 16
 
 ---
-
-## 💻 Building and Running
-
-### Prerequisites
-*   Android Studio Jellyfish (or newer)
-*   Java Development Kit (JDK) 17
-
-### Building from Command Line
-You can build the project directly using the Gradle wrapper in the project root:
-
-1.  **Clean the project build caches:**
-    ```bash
-    ./gradlew clean
-    ```
-2.  **Assemble the Debug APK:**
-    ```bash
-    ./gradlew assembleDebug
-    ```
-3.  **Run Compilation Verification Tests:**
-    ```bash
-    ./gradlew compileDebugKotlin
-    ```
