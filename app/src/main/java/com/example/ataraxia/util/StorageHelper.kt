@@ -32,7 +32,7 @@ object StorageHelper {
         val directory = File(context.filesDir, "journal_voice").apply {
             if (!exists()) mkdirs()
         }
-        val fileName = "audio_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.3gp"
+        val fileName = "audio_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.m4a"
         return File(directory, fileName)
     }
 

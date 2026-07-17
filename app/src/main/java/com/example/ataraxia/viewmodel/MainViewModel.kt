@@ -2,9 +2,10 @@ package com.example.ataraxia.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ataraxia.data.local.dao.BreatheDao
+import com.example.ataraxia.data.local.dao.FocusDao
+import com.example.ataraxia.data.local.dao.JournalDao
 import com.example.ataraxia.data.preferences.SanctuaryPreferences
-import com.example.ataraxia.data.repository.JournalRepository
-import com.example.ataraxia.data.repository.SessionRepository
 import com.example.ataraxia.ui.theme.AtaraxiaThemeMode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,8 +14,9 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(
     private val preferences: SanctuaryPreferences,
-    private val journalRepository: JournalRepository,
-    private val sessionRepository: SessionRepository
+    private val journalDao: JournalDao,
+    private val breatheDao: BreatheDao,
+    private val focusDao: FocusDao
 ) : ViewModel() {
 
     val username: StateFlow<String> = preferences.usernameFlow
@@ -38,11 +40,6 @@ class MainViewModel(
         }
     }
 
-    val notificationsEnabled: StateFlow<Boolean> = preferences.notificationsEnabledFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
-
-    val soundEffectsEnabled: StateFlow<Boolean> = preferences.soundEffectsEnabledFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val appLockEnabled: StateFlow<Boolean> = preferences.appLockEnabledFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -81,17 +78,6 @@ class MainViewModel(
         }
     }
 
-    fun updateNotificationsEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferences.saveNotificationsEnabled(enabled)
-        }
-    }
-
-    fun updateSoundEffectsEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferences.saveSoundEffectsEnabled(enabled)
-        }
-    }
 
     fun updateAppLockEnabled(enabled: Boolean) {
         viewModelScope.launch {
@@ -108,8 +94,9 @@ class MainViewModel(
     fun clearAllData() {
         viewModelScope.launch {
             preferences.clearAllPreferences()
-            journalRepository.clearAll()
-            sessionRepository.clearAllSessions()
+            journalDao.clearAllEntries()
+            breatheDao.clearAllSessions()
+            focusDao.clearAllSessions()
         }
     }
 }

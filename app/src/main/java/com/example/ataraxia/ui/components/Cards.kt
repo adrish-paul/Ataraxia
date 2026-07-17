@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,7 +32,15 @@ import com.example.ataraxia.ui.theme.DesignTokens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.Color
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.HazeInputScale
+import dev.chrisbanes.haze.materials.HazeMaterials
+import com.example.ataraxia.ui.theme.LocalHazeState
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import kotlin.OptIn
 
+@OptIn(ExperimentalHazeApi::class, ExperimentalHazeMaterialsApi::class)
 @Composable
 fun LunafloraCard(
     modifier: Modifier = Modifier,
@@ -43,24 +49,40 @@ fun LunafloraCard(
     border: BorderStroke? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val cardModifier = if (onClick != null) {
-        modifier
-            .clip(MaterialTheme.shapes.large) // 28dp
-            .clickable(onClick = onClick)
+    val hazeState = LocalHazeState.current
+    val useHaze = hazeState != null
+
+    val finalContainerColor = if (useHaze) {
+        containerColor.copy(alpha = 0.75f)
     } else {
-        modifier
+        containerColor
+    }
+
+    val cardModifier = modifier
+        .clip(MaterialTheme.shapes.large)
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+
+    val finalModifier = if (hazeState != null) {
+        cardModifier.hazeEffect(state = hazeState, style = HazeMaterials.ultraThin()) {
+            blurRadius = 30.dp
+            noiseFactor = 0.02f
+            inputScale = HazeInputScale.Auto
+            alpha = 0.95f
+        }
+    } else {
+        cardModifier
     }
 
     Card(
-        modifier = cardModifier,
+        modifier = finalModifier,
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = containerColor,
+            containerColor = finalContainerColor,
             contentColor = DesignTokens.TextPrimary
         ),
         border = border,
         elevation = CardDefaults.cardElevation(
-            defaultElevation = AtaraxiaTheme.elevation.Low
+            defaultElevation = if (useHaze) 0.dp else AtaraxiaTheme.elevation.Low
         )
     ) {
         Box(
@@ -237,54 +259,4 @@ fun JournalCard(
     }
 }
 
-@Composable
-fun AmbientCard(
-    title: String,
-    description: String,
-    illustration: @Composable BoxScope.() -> Unit,
-    isPlaying: Boolean,
-    onPlayToggle: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    LunafloraCard(
-        modifier = modifier,
-        onClick = onPlayToggle
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(MaterialTheme.shapes.medium),
-                contentAlignment = Alignment.Center,
-                content = illustration
-            )
-            Spacer(modifier = Modifier.width(AtaraxiaTheme.spacing.Space16))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Medium),
-                    color = DesignTokens.TextPrimary
-                )
-                Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space4))
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = DesignTokens.TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            IconButton(onClick = onPlayToggle) {
-                Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = if (isPlaying) DesignTokens.PrimaryAccent else DesignTokens.TextSecondary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-    }
-}
+

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,6 +30,22 @@ fun AtaraxiaDialog(
     isDestructive: Boolean = false
 ) {
     Dialog(onDismissRequest = onDismiss) {
+        val currentView = androidx.compose.ui.platform.LocalView.current
+        var window: android.view.Window? = null
+        var parentView = currentView.parent
+        while (parentView != null) {
+            if (parentView is androidx.compose.ui.window.DialogWindowProvider) {
+                window = parentView.window
+                break
+            }
+            parentView = parentView.parent
+        }
+        window?.let { w ->
+            w.setBackgroundDrawableResource(android.R.color.transparent)
+            w.decorView.setBackgroundResource(android.R.color.transparent)
+            w.setElevation(0f)
+            w.decorView.elevation = 0f
+        }
         Surface(
             modifier = modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large, // 28dp radius

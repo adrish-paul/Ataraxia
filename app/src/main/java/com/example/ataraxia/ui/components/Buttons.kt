@@ -4,10 +4,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,9 +18,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -30,7 +26,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
-import com.example.ataraxia.ui.theme.DesignTokens
 
 @Composable
 fun AtaraxiaPrimaryButton(
@@ -69,13 +64,19 @@ fun AtaraxiaPrimaryButton(
             .fillMaxWidth()
             .height(56.dp)
             .scale(scale)
-            .background(brush = gradientBrush, shape = MaterialTheme.shapes.large),
+            .then(
+                if (enabled) {
+                    Modifier.background(brush = gradientBrush, shape = MaterialTheme.shapes.large)
+                } else {
+                    Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), shape = MaterialTheme.shapes.large)
+                }
+            ),
         enabled = enabled,
         shape = MaterialTheme.shapes.large, // 28dp radius
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent, // Managed via background modifier
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            disabledContainerColor = Color.Transparent, // Managed via background modifier
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         ),
         interactionSource = interactionSource,
@@ -131,7 +132,7 @@ fun AtaraxiaSecondaryButton(
         shape = MaterialTheme.shapes.large, // 28dp radius
         border = BorderStroke(1.dp, strokeColor.copy(alpha = 0.8f)),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.Transparent,
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
             contentColor = strokeColor,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         ),

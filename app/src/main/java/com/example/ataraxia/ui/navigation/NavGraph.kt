@@ -27,30 +27,31 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.ataraxia.data.local.AtaraxiaDatabase
-import com.example.ataraxia.data.preferences.SanctuaryPreferences
-import com.example.ataraxia.data.repository.JournalRepository
-import com.example.ataraxia.data.repository.SessionRepository
 import com.example.ataraxia.ui.components.FloatingBottomNavigation
-import com.example.ataraxia.ui.screens.BreatheScreen
-import com.example.ataraxia.ui.screens.FocusScreen
-import com.example.ataraxia.ui.screens.HomeScreen
-import com.example.ataraxia.ui.screens.JournalScreen
-import com.example.ataraxia.ui.screens.MeScreen
-import com.example.ataraxia.ui.screens.PinLockScreen
-import com.example.ataraxia.ui.screens.SplashScreen
-import com.example.ataraxia.ui.screens.WelcomeSetupScreen
+import com.example.ataraxia.features.breathe.presentation.BreatheScreen
+import com.example.ataraxia.features.breathe.presentation.BreatheViewModel
+import com.example.ataraxia.features.focus.presentation.FocusScreen
+import com.example.ataraxia.features.home.presentation.HomeScreen
+import com.example.ataraxia.features.journal.presentation.JournalScreen
+import com.example.ataraxia.features.me.presentation.MeScreen
+import com.example.ataraxia.features.auth.presentation.PinLockScreen
+import com.example.ataraxia.features.auth.presentation.SplashScreen
+import com.example.ataraxia.features.auth.presentation.WelcomeSetupScreen
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import com.example.ataraxia.R
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
-import com.example.ataraxia.ui.theme.DesignTokens
 import com.example.ataraxia.ui.theme.AtaraxiaThemeMode
-import com.example.ataraxia.viewmodel.BreatheViewModel
-import com.example.ataraxia.viewmodel.FocusViewModel
-import com.example.ataraxia.viewmodel.JournalViewModel
+import com.example.ataraxia.ui.theme.DeepIndigo
+import com.example.ataraxia.ui.theme.WarmIvory
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import com.example.ataraxia.ui.theme.LocalHazeState
+import com.example.ataraxia.features.focus.presentation.FocusViewModel
+import com.example.ataraxia.features.journal.presentation.JournalViewModel
 import com.example.ataraxia.viewmodel.MainViewModel
 
 @Composable
@@ -58,17 +59,14 @@ fun AtaraxiaNavGraph() {
     val navController = rememberNavController()
     val context = LocalContext.current
 
-    // Initialize data structures at the root Composable scope
-    val database = remember { AtaraxiaDatabase.getDatabase(context) }
-    val preferences = remember { SanctuaryPreferences(context) }
+    val factory = remember { com.example.ataraxia.core.di.AtaraxiaViewModelFactory(
+        (context.applicationContext as com.example.ataraxia.core.di.AtaraxiaApplication).container
+    ) }
 
-    val journalRepository = remember { JournalRepository(database.journalDao()) }
-    val sessionRepository = remember { SessionRepository(database.breatheDao(), database.focusDao()) }
-
-    val mainViewModel = remember { MainViewModel(preferences, journalRepository, sessionRepository) }
-    val journalViewModel = remember { JournalViewModel(journalRepository) }
-    val breatheViewModel = remember { BreatheViewModel(sessionRepository) }
-    val focusViewModel = remember { FocusViewModel(sessionRepository) }
+    val mainViewModel: MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+    val journalViewModel: JournalViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+    val breatheViewModel: BreatheViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+    val focusViewModel: FocusViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
 
     // Read state flows reactively
     val themeMode by mainViewModel.themeMode.collectAsState()
@@ -90,6 +88,13 @@ fun AtaraxiaNavGraph() {
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    // Scroll-to-top keys: increment when user taps a tab they're already on
+    var homeScrollKey by remember { mutableStateOf(0) }
+    var journalScrollKey by remember { mutableStateOf(0) }
+    var breatheScrollKey by remember { mutableStateOf(0) }
+    var focusScrollKey by remember { mutableStateOf(0) }
+    var meScrollKey by remember { mutableStateOf(0) }
 
     val showBottomBar = (currentRoute in listOf(
         Screen.Home.route,
@@ -113,38 +118,70 @@ fun AtaraxiaNavGraph() {
     val animDuration = 300
 
     val navigateToTab: (String) -> Unit = { route ->
-        navController.navigate(route) {
-            popUpTo(navController.graph.startDestinationId) {
-                saveState = true
+        if (currentRoute == route) {
+            // Already on this tab — scroll to top instead of re-navigating
+            when (route) {
+                Screen.Home.route    -> homeScrollKey++
+                Screen.Journal.route -> journalScrollKey++
+                Screen.Breathe.route -> breatheScrollKey++
+                Screen.Focus.route   -> focusScrollKey++
+                Screen.Me.route      -> meScrollKey++
             }
-            launchSingleTop = true
-            restoreState = true
+        } else if (route == Screen.Home.route) {
+            // Navigating to Home: pop everything back to Home
+            navController.navigate(route) {
+                popUpTo(Screen.Home.route) { inclusive = false }
+                launchSingleTop = true
+            }
+        } else {
+            // Navigating to a non-Home tab: back stack is Home -> <tab>
+            navController.navigate(route) {
+                popUpTo(Screen.Home.route) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
 
-    AtaraxiaTheme(themeMode = themeMode) {
-        val bgImage = when (themeMode) {
-            AtaraxiaThemeMode.AURORA -> painterResource(id = R.drawable.aurora_bg)
-            AtaraxiaThemeMode.SAKURA -> painterResource(id = R.drawable.sakura_bg)
-            else -> null
-        }
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (bgImage != null) {
-                Image(
-                    painter = bgImage,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
+    val hazeState = remember { HazeState() }
+
+    CompositionLocalProvider(LocalHazeState provides hazeState) {
+        AtaraxiaTheme(themeMode = themeMode) {
+            val bgImage = when (themeMode) {
+                AtaraxiaThemeMode.AURORA -> painterResource(id = R.drawable.aurora_bg)
+                AtaraxiaThemeMode.SAKURA -> painterResource(id = R.drawable.sakura_bg)
+                AtaraxiaThemeMode.COSMOS -> painterResource(id = R.drawable.cosmos_bg)
+                AtaraxiaThemeMode.LIGHT -> painterResource(id = R.drawable.serene_bg)
+                AtaraxiaThemeMode.FOREST -> painterResource(id = R.drawable.forest_bg)
+                AtaraxiaThemeMode.AQUA -> painterResource(id = R.drawable.aqua_bg)
+            }
+            val scrimColor = when (themeMode) {
+                AtaraxiaThemeMode.LIGHT -> WarmIvory.copy(alpha = 0.5f)
+                AtaraxiaThemeMode.SAKURA -> Color(0xFFFCF5F7).copy(alpha = 0.45f)
+                AtaraxiaThemeMode.AQUA -> Color(0xFFF2F7FA).copy(alpha = 0.45f)
+                AtaraxiaThemeMode.AURORA -> DeepIndigo.copy(alpha = 0.65f)
+                AtaraxiaThemeMode.COSMOS -> Color.Black.copy(alpha = 0.7f)
+                AtaraxiaThemeMode.FOREST -> Color(0xFF0F1412).copy(alpha = 0.65f)
+            }
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(DesignTokens.AppBackground)
-                )
-            }
+                        .hazeSource(state = hazeState)
+                ) {
+                    Image(
+                        painter = bgImage,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(scrimColor)
+                    )
             NavHost(
                 navController = navController,
                 startDestination = Screen.Splash.route,
@@ -284,14 +321,16 @@ fun AtaraxiaNavGraph() {
                             if (onboardingCompleted) {
                                 if (appLockEnabled && appPin.isNotEmpty()) {
                                     navController.navigate(Screen.PinLock.route) {
-                                        popUpTo(Screen.Splash.route) { inclusive = true }
+                                        popUpTo(0) { inclusive = true }
                                     }
                                 } else {
-                                    navigateToTab(Screen.Home.route)
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(0) { inclusive = true }
+                                    }
                                 }
                             } else {
                                 navController.navigate(Screen.Welcome.route) {
-                                    popUpTo(Screen.Splash.route) { inclusive = true }
+                                    popUpTo(0) { inclusive = true }
                                 }
                             }
                         }
@@ -302,7 +341,9 @@ fun AtaraxiaNavGraph() {
                     WelcomeSetupScreen(
                         onGetStarted = { name ->
                             mainViewModel.completeOnboarding(name)
-                            navigateToTab(Screen.Home.route)
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     )
                 }
@@ -311,66 +352,48 @@ fun AtaraxiaNavGraph() {
                     PinLockScreen(
                         correctPin = appPin,
                         onUnlockSuccess = {
-                            navigateToTab(Screen.Home.route)
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     )
                 }
 
+
                 composable(Screen.Home.route) {
                     HomeScreen(
                         name = userName,
-                        profileImage = profileImage,
                         isFirstLaunch = isFirstLaunch,
                         currentThemeMode = themeMode,
                         onFirstLaunchCompleted = { mainViewModel.completeFirstLaunch() },
-                        onNavigateToProfile = { navigateToTab(Screen.Me.route) },
                         onQuickBreathe = { navigateToTab(Screen.Breathe.route) },
                         onQuickJournal = { navigateToTab(Screen.Journal.route) },
-                        onQuickFocus = { navigateToTab(Screen.Focus.route) }
+                        onQuickFocus = { navigateToTab(Screen.Focus.route) },
+                        scrollToTopKey = homeScrollKey
                     )
                 }
 
                 composable(Screen.Journal.route) {
                     JournalScreen(
-                        name = userName,
-                        profileImage = profileImage,
-                        entries = reflections,
-                        onAddEntry = { title, content, mood, weatherContext, isFavorite, tags, imagePath, voicePath ->
-                            journalViewModel.addEntry(
-                                title = title,
-                                content = content,
-                                mood = mood,
-                                weatherContext = weatherContext,
-                                isFavorite = isFavorite,
-                                tags = tags,
-                                imagePath = imagePath,
-                                voicePath = voicePath
-                            )
-                        },
-                        onToggleFavorite = { journalViewModel.toggleFavorite(it) },
-                        onDeleteEntry = { journalViewModel.deleteEntry(it) },
+                        viewModel = journalViewModel,
                         onWritingModeChanged = { isJournalWriting = it },
-                        onNavigateToProfile = { navigateToTab(Screen.Me.route) }
+                        scrollToTopKey = journalScrollKey
                     )
                 }
 
                 composable(Screen.Breathe.route) {
                     BreatheScreen(
-                        name = userName,
-                        profileImage = profileImage,
                         viewModel = breatheViewModel,
                         onSessionActiveChanged = { isBreatheActive = it },
-                        onNavigateToProfile = { navigateToTab(Screen.Me.route) }
+                        scrollToTopKey = breatheScrollKey
                     )
                 }
 
                 composable(Screen.Focus.route) {
                     FocusScreen(
-                        name = userName,
-                        profileImage = profileImage,
                         viewModel = focusViewModel,
                         onSpaceActiveChanged = { isFocusActive = it },
-                        onNavigateToProfile = { navigateToTab(Screen.Me.route) }
+                        scrollToTopKey = focusScrollKey
                     )
                 }
 
@@ -397,11 +420,13 @@ fun AtaraxiaNavGraph() {
                             navController.navigate(Screen.Splash.route) {
                                 popUpTo(0) { inclusive = true }
                             }
-                        }
+                        },
+                        scrollToTopKey = meScrollKey
                     )
                 }
+                }
             }
-
+            
             // Animate sliding the bottom bar in and out of the view
             AnimatedVisibility(
                 visible = showBottomBar,
@@ -422,4 +447,5 @@ fun AtaraxiaNavGraph() {
             }
         }
     }
+}
 }

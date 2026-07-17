@@ -1,4 +1,4 @@
-package com.example.ataraxia.ui.screens
+package com.example.ataraxia.features.auth.presentation
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
 import com.example.ataraxia.ui.theme.DesignTokens
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun SplashScreen(
@@ -29,7 +30,6 @@ fun SplashScreen(
     val animationTokens = AtaraxiaTheme.animation
 
     LaunchedEffect(key1 = true) {
-        // Fade in logo slowly (1000ms)
         alphaAnim.animateTo(
             targetValue = 1f,
             animationSpec = tween(
@@ -37,9 +37,7 @@ fun SplashScreen(
                 easing = animationTokens.EasingCurve
             )
         )
-        // Linger visual focus
-        delay(600)
-        // Fade out logo slowly (600ms)
+        delay(600.milliseconds)
         alphaAnim.animateTo(
             targetValue = 0f,
             animationSpec = tween(

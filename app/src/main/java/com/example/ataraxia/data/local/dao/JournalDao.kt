@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Update
 import com.example.ataraxia.data.local.entity.JournalEntryEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -16,8 +15,9 @@ interface JournalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: JournalEntryEntity): Long
 
-    @Update
-    suspend fun updateEntry(entry: JournalEntryEntity): Int
+
+    @Query("UPDATE journal_entries SET isFavorite = NOT isFavorite WHERE id = :id")
+    suspend fun toggleFavorite(id: Long): Int
 
     @Query("DELETE FROM journal_entries WHERE id = :id")
     suspend fun deleteEntry(id: Long): Int

@@ -36,7 +36,18 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
 import com.example.ataraxia.ui.theme.DesignTokens
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.HazeInputScale
+import dev.chrisbanes.haze.materials.HazeMaterials
+import com.example.ataraxia.ui.theme.LocalHazeState
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import kotlin.OptIn
 
+@OptIn(ExperimentalHazeApi::class, ExperimentalHazeMaterialsApi::class)
 @Composable
 fun FloatingBottomNavigation(
     currentRoute: String,
@@ -52,16 +63,53 @@ fun FloatingBottomNavigation(
         NavigationItem("me", "Me", Icons.Outlined.Person)
     )
 
-    Surface(
-        modifier = modifier
+    val hazeState = LocalHazeState.current
+    val useHaze = hazeState != null
+
+    val surfaceColor = if (useHaze) {
+        DesignTokens.CardBackground.copy(alpha = 0.45f)
+    } else {
+        DesignTokens.CardBackground.copy(alpha = 0.9f)
+    }
+
+    val surfaceModifier = if (hazeState != null) {
+        modifier
             .fillMaxWidth()
             .padding(horizontal = AtaraxiaTheme.spacing.Space24)
             .navigationBarsPadding()
             .padding(bottom = AtaraxiaTheme.spacing.Space16)
-            .height(72.dp),
+            .height(72.dp)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .hazeEffect(state = hazeState, style = HazeMaterials.ultraThin()) {
+                blurRadius = 35.dp
+                noiseFactor = 0.02f
+                inputScale = HazeInputScale.Auto
+                alpha = 0.95f
+            }
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.3f),
+                        Color.White.copy(alpha = 0.05f),
+                    )
+                ),
+                shape = MaterialTheme.shapes.extraLarge
+            )
+    } else {
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = AtaraxiaTheme.spacing.Space24)
+            .navigationBarsPadding()
+            .padding(bottom = AtaraxiaTheme.spacing.Space16)
+            .height(72.dp)
+    }
+
+    Surface(
+        modifier = surfaceModifier,
         shape = MaterialTheme.shapes.extraLarge,
-        color = DesignTokens.CardBackground.copy(alpha = 0.9f),
-        shadowElevation = AtaraxiaTheme.elevation.Floating
+        color = surfaceColor,
+        shadowElevation = if (useHaze) 0.dp else AtaraxiaTheme.elevation.Floating
     ) {
         Row(
             modifier = Modifier

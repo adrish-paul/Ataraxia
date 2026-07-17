@@ -1,4 +1,4 @@
-package com.example.ataraxia.ui.screens
+package com.example.ataraxia.features.auth.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement

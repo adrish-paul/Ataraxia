@@ -24,8 +24,6 @@ class SanctuaryPreferences(private val context: Context) {
         val KEY_USERNAME = stringPreferencesKey("username")
         val KEY_HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
-        val KEY_NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
-        val KEY_SOUND_EFFECTS_ENABLED = booleanPreferencesKey("sound_effects_enabled")
         val KEY_APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
         val KEY_APP_PIN = stringPreferencesKey("app_pin")
         val KEY_PROFILE_IMAGE = stringPreferencesKey("profile_image")
@@ -91,44 +89,21 @@ class SanctuaryPreferences(private val context: Context) {
         .map { preferences ->
             val modeStr = preferences[KEY_THEME_MODE]
             if (modeStr == null) {
-                if (isSystemDarkTheme(context)) AtaraxiaThemeMode.AURORA else AtaraxiaThemeMode.SAKURA
+                if (isSystemDarkTheme(context)) AtaraxiaThemeMode.FOREST else AtaraxiaThemeMode.SAKURA
             } else {
                 val mappedStr = when (modeStr) {
-                    "DARK" -> AtaraxiaThemeMode.AURORA.name
+                    "DARK" -> AtaraxiaThemeMode.FOREST.name
                     "AMOLED" -> AtaraxiaThemeMode.COSMOS.name
                     else -> modeStr
                 }
                 try {
                     AtaraxiaThemeMode.valueOf(mappedStr)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     AtaraxiaThemeMode.SAKURA
                 }
             }
         }
 
-    val notificationsEnabledFlow: Flow<Boolean> = dataStore.data
-        .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
-        }
-        .map { preferences ->
-            preferences[KEY_NOTIFICATIONS_ENABLED] ?: true
-        }
-
-    val soundEffectsEnabledFlow: Flow<Boolean> = dataStore.data
-        .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
-        }
-        .map { preferences ->
-            preferences[KEY_SOUND_EFFECTS_ENABLED] ?: false
-        }
 
     val appLockEnabledFlow: Flow<Boolean> = dataStore.data
         .catch { exception ->
@@ -186,7 +161,7 @@ class SanctuaryPreferences(private val context: Context) {
     suspend fun initializeDefaultThemeIfNecessary() {
         dataStore.edit { preferences ->
             if (preferences[KEY_THEME_MODE] == null) {
-                val defaultMode = if (isSystemDarkTheme(context)) AtaraxiaThemeMode.AURORA else AtaraxiaThemeMode.SAKURA
+                val defaultMode = if (isSystemDarkTheme(context)) AtaraxiaThemeMode.FOREST else AtaraxiaThemeMode.SAKURA
                 preferences[KEY_THEME_MODE] = defaultMode.name
             }
         }
@@ -198,17 +173,6 @@ class SanctuaryPreferences(private val context: Context) {
         }
     }
 
-    suspend fun saveNotificationsEnabled(enabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[KEY_NOTIFICATIONS_ENABLED] = enabled
-        }
-    }
-
-    suspend fun saveSoundEffectsEnabled(enabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[KEY_SOUND_EFFECTS_ENABLED] = enabled
-        }
-    }
 
     suspend fun saveAppLockEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->

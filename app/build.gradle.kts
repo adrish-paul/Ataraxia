@@ -13,8 +13,8 @@ android {
         minSdk = 31
         //noinspection OldTargetApi
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +57,10 @@ dependencies {
 
     // Extended Outlined Icons
     implementation(libs.androidx.compose.material.icons.extended)
+
+    // Haze Glassmorphism
+    implementation(libs.haze)
+    implementation(libs.haze.materials)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
