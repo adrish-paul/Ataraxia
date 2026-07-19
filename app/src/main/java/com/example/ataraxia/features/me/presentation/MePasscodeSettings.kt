@@ -8,6 +8,8 @@ import androidx.compose.ui.window.Dialog
 import com.example.ataraxia.ui.components.AtaraxiaPrimaryButton
 import com.example.ataraxia.ui.components.AtaraxiaSecondaryButton
 import com.example.ataraxia.ui.components.PrimaryTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
 import com.example.ataraxia.ui.theme.DesignTokens
 
@@ -59,7 +61,8 @@ fun MePasscodeSettings(
                             }
                         },
                         placeholder = "Enter 4 digits",
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     if (pinSetupError.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space8))

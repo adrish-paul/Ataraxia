@@ -1,5 +1,11 @@
 package com.example.ataraxia.features.breathe.presentation
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -116,82 +122,111 @@ fun BreatheCalendarDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val cal = Calendar.getInstance().apply {
-                        set(Calendar.YEAR, calendarYear)
-                        set(Calendar.MONTH, calendarMonth)
-                        set(Calendar.DAY_OF_MONTH, 1)
-                    }
-                    val startDayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
-                    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                    AnimatedContent(
+                        targetState = Pair(calendarMonth, calendarYear),
+                        transitionSpec = {
+                            val targetMonth = targetState.first
+                            val initialMonth = initialState.first
+                            val isNext = targetState.second > initialState.second || 
+                                         (targetState.second == initialState.second && targetMonth > initialMonth)
+                            
+                            if (isNext) {
+                                (slideInHorizontally { it } + fadeIn()) togetherWith (slideOutHorizontally { -it } + fadeOut())
+                            } else {
+                                (slideInHorizontally { -it } + fadeIn()) togetherWith (slideOutHorizontally { it } + fadeOut())
+                            }
+                        },
+                        label = "CalendarMonthTransition"
+                    ) { (currentMonth, currentYear) ->
+                        Column {
+                            val cal = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, currentYear)
+                                set(Calendar.MONTH, currentMonth)
+                                set(Calendar.DAY_OF_MONTH, 1)
+                            }
+                            val startDayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+                            val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-                    val cells = mutableListOf<Int?>()
-                    repeat(startDayOfWeek - 1) {
-                        cells.add(null)
-                    }
-                    for (i in 1..daysInMonth) {
-                        cells.add(i)
-                    }
+                            val cells = mutableListOf<Int?>()
+                            repeat(startDayOfWeek - 1) {
+                                cells.add(null)
+                            }
+                            for (i in 1..daysInMonth) {
+                                cells.add(i)
+                            }
 
-                    val rows = cells.chunked(7)
-                    rows.forEach { row ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            row.forEach { dayNumber ->
-                                if (dayNumber == null) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                } else {
-                                    val daySessions = sessions.filter { session ->
-                                        val sessionCal = Calendar.getInstance().apply { timeInMillis = session.timestamp }
-                                        sessionCal.get(Calendar.YEAR) == calendarYear &&
-                                        sessionCal.get(Calendar.MONTH) == calendarMonth &&
-                                        sessionCal.get(Calendar.DAY_OF_MONTH) == dayNumber
-                                    }
-
-                                    val isSelected = selectedDayNum == dayNumber
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(
-                                                if (isSelected) {
-                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                                                } else if (daySessions.isNotEmpty()) {
-                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                                } else {
-                                                    Color.Transparent
-                                                }
-                                            )
-                                            .then(
-                                                if (isSelected) Modifier.border(
-                                                    width = 1.5.dp,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    shape = RoundedCornerShape(8.dp)
-                                                ) else Modifier
-                                            )
-                                            .clickable {
-                                                onDaySelected(if (isSelected) null else dayNumber)
-                                            }
-                                            .padding(vertical = 6.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Text(
-                                            text = dayNumber.toString(),
-                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                            color = if (isSelected || daySessions.isNotEmpty()) MaterialTheme.colorScheme.primary else DesignTokens.TextPrimary
-                                        )
-                                        if (daySessions.isNotEmpty()) {
-                                            Text(text = "🌸", fontSize = 10.sp)
+                            val rows = cells.chunked(7)
+                            rows.forEach { row ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    row.forEach { dayNumber ->
+                                        if (dayNumber == null) {
+                                            Spacer(modifier = Modifier.weight(1f))
                                         } else {
-                                            Spacer(modifier = Modifier.height(12.dp))
+                                            val daySessions = sessions.filter { session ->
+                                                val sessionCal = Calendar.getInstance().apply { timeInMillis = session.timestamp }
+                                                sessionCal.get(Calendar.YEAR) == currentYear &&
+                                                sessionCal.get(Calendar.MONTH) == currentMonth &&
+                                                sessionCal.get(Calendar.DAY_OF_MONTH) == dayNumber
+                                            }
+
+                                            val isSelected = selectedDayNum == dayNumber
+                                            val isToday = Calendar.getInstance().let {
+                                                it.get(Calendar.YEAR) == currentYear &&
+                                                it.get(Calendar.MONTH) == currentMonth &&
+                                                it.get(Calendar.DAY_OF_MONTH) == dayNumber
+                                            }
+                                            
+                                            Column(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(
+                                                        if (isSelected) {
+                                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                                        } else if (daySessions.isNotEmpty()) {
+                                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                                        } else {
+                                                            Color.Transparent
+                                                        }
+                                                    )
+                                                    .then(
+                                                        if (isSelected) {
+                                                            Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                                                        } else if (isToday) {
+                                                            Modifier.border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                                        } else {
+                                                            Modifier
+                                                        }
+                                                    )
+                                                    .clickable {
+                                                        onDaySelected(if (isSelected) null else dayNumber)
+                                                    }
+                                                    .padding(vertical = 6.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    text = dayNumber.toString(),
+                                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium
+                                                    ),
+                                                    color = if (isSelected || isToday || daySessions.isNotEmpty()) MaterialTheme.colorScheme.primary else DesignTokens.TextPrimary
+                                                )
+                                                if (daySessions.isNotEmpty()) {
+                                                    Text(text = "🌸", fontSize = 10.sp)
+                                                } else {
+                                                    Spacer(modifier = Modifier.height(12.dp))
+                                                }
+                                            }
                                         }
                                     }
-                                }
-                            }
-                            if (row.size < 7) {
-                                repeat(7 - row.size) {
-                                    Spacer(modifier = Modifier.weight(1f))
+                                    if (row.size < 7) {
+                                        repeat(7 - row.size) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,25 +71,27 @@ fun MoodChip(
     ) {
         Row(
             modifier = Modifier
-                .defaultMinSize(minHeight = 48.dp)
+                .defaultMinSize(minHeight = 40.dp)
                 .padding(
-                    horizontal = AtaraxiaTheme.spacing.Space16,
-                    vertical = AtaraxiaTheme.spacing.Space8
+                    horizontal = 6.dp,
+                    vertical = 4.dp
                 ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
                 text = moodEmoji,
-                style = MaterialTheme.typography.bodyLarge
+                style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.width(AtaraxiaTheme.spacing.Space8))
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = moodLabel,
-                style = MaterialTheme.typography.labelLarge.copy(
+                style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
                 ),
-                color = if (isSelected) DesignTokens.TextPrimary else DesignTokens.TextSecondary
+                color = if (isSelected) DesignTokens.TextPrimary else DesignTokens.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
             )
         }
     }

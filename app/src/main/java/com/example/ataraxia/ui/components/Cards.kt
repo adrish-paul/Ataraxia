@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Card
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.AnnotatedString
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
 import com.example.ataraxia.ui.theme.DesignTokens
 
@@ -47,13 +49,18 @@ fun LunafloraCard(
     onClick: (() -> Unit)? = null,
     containerColor: Color = DesignTokens.CardBackground,
     border: BorderStroke? = null,
+    contentPadding: PaddingValues = PaddingValues(AtaraxiaTheme.spacing.Space20),
     content: @Composable BoxScope.() -> Unit
 ) {
     val hazeState = LocalHazeState.current
     val useHaze = hazeState != null
 
     val finalContainerColor = if (useHaze) {
-        containerColor.copy(alpha = 0.75f)
+        if (containerColor == DesignTokens.CardBackground) {
+            containerColor.copy(alpha = 0.75f)
+        } else {
+            containerColor
+        }
     } else {
         containerColor
     }
@@ -86,7 +93,7 @@ fun LunafloraCard(
         )
     ) {
         Box(
-            modifier = Modifier.padding(AtaraxiaTheme.spacing.Space20),
+            modifier = Modifier.padding(contentPadding),
             content = content
         )
     }
@@ -250,6 +257,59 @@ fun JournalCard(
             Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space8))
             Text(
                 text = snippet,
+                style = MaterialTheme.typography.bodyLarge,
+                color = DesignTokens.TextSecondary,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+fun JournalCard(
+    titleAnnotated: AnnotatedString,
+    snippetAnnotated: AnnotatedString,
+    date: String,
+    mood: String,
+    metadataContext: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LunafloraCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$mood  $date",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                    color = DesignTokens.TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = metadataContext,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = DesignTokens.TextSecondary
+                )
+            }
+            if (titleAnnotated.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space8))
+                Text(
+                    text = titleAnnotated,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = DesignTokens.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space8))
+            Text(
+                text = snippetAnnotated,
                 style = MaterialTheme.typography.bodyLarge,
                 color = DesignTokens.TextSecondary,
                 maxLines = 3,

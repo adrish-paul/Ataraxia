@@ -1,19 +1,10 @@
 package com.example.ataraxia.features.breathe.presentation
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.LocalFlorist
-import androidx.compose.material.icons.outlined.Spa
-import androidx.compose.material.icons.outlined.UnfoldMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,21 +12,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ataraxia.data.local.entity.BreatheSessionEntity
-import com.example.ataraxia.ui.components.EmptyState
-import com.example.ataraxia.ui.components.AtaraxiaPrimaryButton
-import com.example.ataraxia.ui.components.AtaraxiaSecondaryButton
 import com.example.ataraxia.ui.components.LunafloraCard
+import com.example.ataraxia.ui.components.AtaraxiaPrimaryButton
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogWindowProvider
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
 import com.example.ataraxia.ui.theme.DesignTokens
-import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+enum class BreatheScreenState {
+    PREPARATION, ACTIVE, COMPLETION
+}
 
 @Composable
 fun BreatheScreen(
@@ -43,18 +36,28 @@ fun BreatheScreen(
     onSessionActiveChanged: (Boolean) -> Unit,
     scrollToTopKey: Int = 0
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val sessions by viewModel.allSessions.collectAsState()
 
-    var isSessionActive by remember { mutableStateOf(false) }
-    var elapsedSeconds by remember { mutableStateOf(0) }
+    val selectedMethod by viewModel.selectedMethod.collectAsState()
+    val selectedDurationMinutes by viewModel.selectedDurationMinutes.collectAsState()
+    val selectedSound by viewModel.selectedSound.collectAsState()
+    val soundVolume by viewModel.soundVolume.collectAsState()
+    val hapticGuidanceEnabled by viewModel.hapticGuidanceEnabled.collectAsState()
+
+    var screenState by remember { mutableStateOf(BreatheScreenState.PREPARATION) }
+    var elapsedSeconds by remember { mutableIntStateOf(0) }
 
     var showCalendarDialog by remember { mutableStateOf(false) }
     var calendarYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
     var calendarMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
     var selectedDayNum by remember { mutableStateOf<Int?>(null) }
 
-    val displayedSessions = remember(sessions, selectedDayNum, calendarMonth, calendarYear) {
-        if (selectedDayNum == null) {
+    var sortOrder by remember { mutableStateOf("Newest") }
+    var showInsightsDialog by remember { mutableStateOf(false) }
+
+    val displayedSessions = remember(sessions, selectedDayNum, calendarMonth, calendarYear, sortOrder) {
+        val filtered = if (selectedDayNum == null) {
             sessions
         } else {
             sessions.filter { session ->
@@ -64,48 +67,70 @@ fun BreatheScreen(
                 sessionCal.get(Calendar.DAY_OF_MONTH) == selectedDayNum
             }
         }
+        when (sortOrder) {
+            "Newest"  -> filtered.sortedByDescending { it.timestamp }
+            "Oldest"  -> filtered.sortedBy { it.timestamp }
+            "Longest" -> filtered.sortedByDescending { it.durationSeconds }
+            else      -> filtered.sortedByDescending { it.timestamp }
+        }
     }
 
-    var showMoodPicker by remember { mutableStateOf(false) }
-    var pendingDurationSeconds by remember { mutableStateOf(0) }
-    var pendingMethod by remember { mutableStateOf("") }
-    var selectedMood by remember { mutableStateOf("") }
+    LaunchedEffect(screenState) {
+        onSessionActiveChanged(screenState == BreatheScreenState.ACTIVE || screenState == BreatheScreenState.COMPLETION)
+    }
 
-    LaunchedEffect(isSessionActive) {
-        if (isSessionActive) elapsedSeconds = 0
-        onSessionActiveChanged(isSessionActive)
+    // Intercept back button
+    BackHandler(enabled = screenState != BreatheScreenState.PREPARATION) {
+        if (screenState == BreatheScreenState.COMPLETION) {
+            screenState = BreatheScreenState.PREPARATION
+        }
     }
 
     val view = LocalView.current
-    DisposableEffect(isSessionActive) {
-        if (isSessionActive) view.keepScreenOn = true
+    DisposableEffect(screenState) {
+        if (screenState == BreatheScreenState.ACTIVE) {
+            view.keepScreenOn = true
+        }
         onDispose { view.keepScreenOn = false }
     }
 
-    var selectedMethod by remember { mutableStateOf("Box Breathing") }
-    var selectedDurationMinutes by remember { mutableStateOf(5) }
+    // Load custom methods on launch
+    LaunchedEffect(Unit) {
+        viewModel.loadCustomMethods(context)
+    }
 
-    val methods = listOf(
-        MethodItem("Box Breathing",       "Equal ratios of inhale, hold, exhale, hold.",                 "4 - 4 - 4 - 4"),
-        MethodItem("Deep Calm",            "Extended exhalations for rapid nerve grounding.",             "4 - 7 - 8"),
-        MethodItem("Triangle Breathing",   "Inhale, hold, exhale. Military-proven clarity.",              "4 - 4 - 4"),
-        MethodItem("Resonance Breathing",  "5.5 s cycles for heart-rate coherence.",                      "5.5 - 5.5"),
-        MethodItem("Sleep Breathing",      "Dr. Weil's sleep induction — long hold, slow release.",       "4 - 7 - 8"),
-        MethodItem("Cleansing Breath",     "Short centering pattern focusing on gentle release.",         "4 - 2 - 4"),
-        MethodItem("Calm Breathing",       "Balanced inhale and exhale for everyday calm.",               "5 - 5")
-    )
+    val prebuiltMethods = remember {
+        listOf(
+            MethodItem("4-7-8", "Dr. Weil's famous sleep and relaxation technique.", "4 - 7 - 8", 4, 7, 8, 0, false),
+            MethodItem("Box Breathing", "Equal ratios of inhale, hold, exhale, hold.", "4 - 4 - 4 - 4", 4, 4, 4, 4, false),
+            MethodItem("Calm", "Slow, relaxing everyday breathing.", "4 - 2 - 4 - 2", 4, 2, 4, 2, false),
+            MethodItem("Custom Cycle", "Balanced everyday centering pattern.", "4 - 4", 4, 4, 0, 0, false),
+            MethodItem("Deep Relaxation", "Slow, soothing release of bodily tension.", "4 - 7 - 8 - 2", 4, 7, 8, 2, false),
+            MethodItem("Exam Calm", "Quiet your mind before high performance.", "4 - 4 - 6", 4, 4, 6, 0, false),
+            MethodItem("Morning Energy", "Invigorating breathing to start your morning.", "3 - 1 - 3", 3, 1, 3, 0, false),
+            MethodItem("Sleep Preparation", "Transition your mind into deep sleep.", "4 - 6 - 6 - 2", 4, 6, 6, 2, false),
+            MethodItem("Stress Relief", "Rapid tension release for high stress.", "5 - 2 - 5 - 2", 5, 2, 5, 2, false)
+        ).sortedBy { it.name.lowercase() }
+    }
+
+    val customMethods by viewModel.customMethods.collectAsState()
+    val allMethods = remember(customMethods, prebuiltMethods) {
+        customMethods.sortedBy { it.name.lowercase() } + prebuiltMethods
+    }
+
+    val currentMethodItem = remember(selectedMethod, allMethods) {
+        allMethods.firstOrNull { it.name == selectedMethod }
+            ?: allMethods.firstOrNull { it.name == "Box Breathing" }
+            ?: allMethods.first()
+    }
 
     var showMethodPopup by remember { mutableStateOf(false) }
 
-    fun logSessionAndReset(duration: Int, method: String, mood: String) {
-        viewModel.logSession(duration, method, mood)
-        selectedMood = ""
-        showMoodPicker = false
-    }
-
     val idleScrollState = rememberScrollState()
     LaunchedEffect(scrollToTopKey) {
-        if (scrollToTopKey > 0 && !isSessionActive) idleScrollState.animateScrollTo(0)
+        if (scrollToTopKey > 0 && screenState == BreatheScreenState.PREPARATION) {
+            idleScrollState.animateScrollTo(0)
+        }
     }
 
     Box(
@@ -113,294 +138,78 @@ fun BreatheScreen(
             .fillMaxSize()
             .background(DesignTokens.AppBackground)
     ) {
-        if (!isSessionActive && !showMoodPicker) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .padding(horizontal = AtaraxiaTheme.spacing.Space24)
-                    .verticalScroll(idleScrollState)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = AtaraxiaTheme.spacing.Space16),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.LocalFlorist,
-                            contentDescription = "Breathe",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(AtaraxiaTheme.spacing.Space8))
-                        Text(
-                            text = "Breathe",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Medium),
-                            color = DesignTokens.TextPrimary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space12))
-
-                // Stats Banner
+        when (screenState) {
+            BreatheScreenState.PREPARATION -> {
+                // Calculate Stats values
                 val todayMins = remember(sessions) { calculateTodayBreatheMinutes(sessions) }
                 val weekMins  = remember(sessions) { calculateWeekBreatheMinutes(sessions) }
                 val monthMins = remember(sessions) { calculateMonthBreatheMinutes(sessions) }
                 val currentStreak = remember(sessions) { calculateBreatheStreak(sessions) }
 
-                LunafloraCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = if (currentStreak > 0) "🔥" else "✨",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = if (currentStreak > 0) "$currentStreak Day Streak" else "Start your first session",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            BreatheStatCell(label = "Today", value = formatBreatheTime(todayMins))
-                            BreatheStatDivider()
-                            BreatheStatCell(label = "This Week", value = formatBreatheTime(weekMins))
-                            BreatheStatDivider()
-                            BreatheStatCell(label = "This Month", value = formatBreatheTime(monthMins))
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space32))
-
-                val currentMethod = remember(selectedMethod) {
-                    methods.firstOrNull { it.name == selectedMethod } ?: methods.first()
-                }
-
-                LunafloraCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(AtaraxiaTheme.spacing.Space20)) {
-                        Column {
-                            Text(
-                                text = "Breathing Method",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = DesignTokens.TextSecondary
-                            )
-                            Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space8))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.06f))
-                                    .clickable { showMethodPopup = true }
-                                    .padding(AtaraxiaTheme.spacing.Space12)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = currentMethod.name,
-                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Text(
-                                            text = currentMethod.desc,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = DesignTokens.TextSecondary
-                                        )
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = currentMethod.pattern,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(AtaraxiaTheme.spacing.Space8))
-                                        Icon(
-                                            imageVector = Icons.Outlined.UnfoldMore,
-                                            contentDescription = "Select Method",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Target Duration",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = DesignTokens.TextSecondary
-                                )
-                                Text(
-                                    text = "$selectedDurationMinutes min",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space8))
-                            Slider(
-                                value = selectedDurationMinutes.toFloat(),
-                                onValueChange = { selectedDurationMinutes = it.toInt().coerceIn(1, 30) },
-                                valueRange = 1f..30f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = MaterialTheme.colorScheme.primary,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                                    inactiveTrackColor = DesignTokens.TextSecondary.copy(alpha = 0.2f)
-                                )
-                            )
-                        }
-
-                        AtaraxiaPrimaryButton(
-                            text = "Begin Session",
-                            onClick = {
-                                pendingMethod = selectedMethod
-                                isSessionActive = true
-                            }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        BreathePrepScreen(
+                            sessions = sessions,
+                            selectedMethod = selectedMethod,
+                            onMethodSelected = { viewModel.updateSelectedMethod(it) },
+                            selectedDurationMinutes = selectedDurationMinutes,
+                            onDurationChanged = { viewModel.updateDuration(it) },
+                            selectedSound = selectedSound,
+                            onSoundSelected = { viewModel.updateSound(it) },
+                            soundVolume = soundVolume,
+                            onVolumeChanged = { viewModel.updateVolume(it) },
+                            hapticGuidanceEnabled = hapticGuidanceEnabled,
+                            onHapticGuidanceToggle = { viewModel.updateHapticGuidance(it) },
+                            onBeginSession = { screenState = BreatheScreenState.ACTIVE },
+                            showCalendarTrigger = { showCalendarDialog = true },
+                            selectedDayNum = selectedDayNum,
+                            onClearDayFilter = { selectedDayNum = null },
+                            displayedSessions = displayedSessions,
+                            onDeleteSession = { id -> viewModel.deleteSession(id) },
+                            methods = allMethods,
+                            onShowMethodPopup = { showMethodPopup = true },
+                            todayMins = todayMins,
+                            weekMins = weekMins,
+                            monthMins = monthMins,
+                            currentStreak = currentStreak,
+                            scrollState = idleScrollState,
+                            onShowInsights = { showInsightsDialog = true }
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(AtaraxiaTheme.spacing.Space32))
-
-                LunafloraCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(AtaraxiaTheme.spacing.Space16)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val monthName = DateFormatSymbols().months[calendarMonth]
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (selectedDayNum != null) "Breathe Logs: $monthName $selectedDayNum" else "Recent Sessions",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = DesignTokens.TextPrimary
-                                )
-                                Text(
-                                    text = if (selectedDayNum != null) "Breathing logs on selected calendar day." else "Your breathing history.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = DesignTokens.TextSecondary
-                                )
-                            }
-                            if (selectedDayNum != null) {
-                                Text(
-                                    text = "Show All",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .clickable { selectedDayNum = null }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            } else {
-                                IconButton(onClick = { showCalendarDialog = true }) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.CalendarMonth,
-                                        contentDescription = "View Calendar",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        if (displayedSessions.isEmpty()) {
-                            EmptyState(
-                                illustration = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Spa,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(64.dp)
-                                    )
-                                },
-                                title = if (selectedDayNum != null) "No sessions today" else "No breathe sessions logged yet",
-                                subtitle = if (selectedDayNum != null) "You didn't log any breathe sessions on this day." else "Begin a breathing session to start anchoring yourself in the present."
-                            )
-                        } else {
-                            BreatheHistoryTimeline(sessions = displayedSessions, onDelete = { id -> viewModel.deleteSession(id) })
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(130.dp))
             }
-        } else if (isSessionActive) {
-            BreatheActiveSession(
-                pendingMethod = pendingMethod,
-                selectedMethod = selectedMethod,
-                onEndSession = { elapsed, method ->
-                    if (elapsed >= 10) {
-                        pendingDurationSeconds = elapsed
-                        pendingMethod = method
-                        isSessionActive = false
-                        showMoodPicker = true
-                    } else {
-                        isSessionActive = false
-                    }
-                }
-            )
-        }
 
-        // Mood Picker
-        AnimatedVisibility(
-            visible = showMoodPicker,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it })
-        ) {
-            Box(modifier = Modifier.fillMaxSize().background(DesignTokens.AppBackground), contentAlignment = Alignment.Center) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(AtaraxiaTheme.spacing.Space24),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(AtaraxiaTheme.spacing.Space24)
-                ) {
-                    Text(text = "How do you feel?", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Medium), color = DesignTokens.TextPrimary, textAlign = TextAlign.Center)
-                    Text(text = "Take a moment to note your state.", style = MaterialTheme.typography.bodyLarge, color = DesignTokens.TextSecondary, textAlign = TextAlign.Center)
-
-                    val moods = listOf("😌 Calm", "😴 Sleepy", "😊 Happy", "😤 Relieved", "🤔 Neutral")
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        moods.take(3).forEach { mood ->
-                            MoodChip(mood = mood, isSelected = selectedMood == mood, onClick = { selectedMood = if (selectedMood == mood) "" else mood }, modifier = Modifier.weight(1f))
+            BreatheScreenState.ACTIVE -> {
+                BreatheActiveSession(
+                    selectedMethod = selectedMethod,
+                    inhaleSeconds = currentMethodItem.inhale,
+                    holdSeconds = currentMethodItem.hold,
+                    exhaleSeconds = currentMethodItem.exhale,
+                    restSeconds = currentMethodItem.rest,
+                    targetDurationMinutes = selectedDurationMinutes,
+                    selectedSound = selectedSound,
+                    soundVolume = soundVolume,
+                    hapticGuidanceEnabled = hapticGuidanceEnabled,
+                    onEndSession = { duration, _, completed ->
+                        elapsedSeconds = duration
+                        if (completed || duration >= 10) {
+                            screenState = BreatheScreenState.COMPLETION
+                        } else {
+                            screenState = BreatheScreenState.PREPARATION
                         }
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        moods.drop(3).forEach { mood ->
-                            MoodChip(mood = mood, isSelected = selectedMood == mood, onClick = { selectedMood = if (selectedMood == mood) "" else mood }, modifier = Modifier.weight(1f))
-                        }
-                        Box(modifier = Modifier.weight(1f))
-                    }
+                )
+            }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AtaraxiaTheme.spacing.Space12)) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            AtaraxiaSecondaryButton(text = "Skip", onClick = {
-                                logSessionAndReset(pendingDurationSeconds, pendingMethod, "")
-                            })
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            AtaraxiaPrimaryButton(text = "Save", onClick = {
-                                logSessionAndReset(pendingDurationSeconds, pendingMethod, selectedMood)
-                            })
-                        }
+            BreatheScreenState.COMPLETION -> {
+                BreatheCompletionScreen(
+                    durationSeconds = elapsedSeconds,
+                    methodName = selectedMethod,
+                    onContinue = { mood ->
+                        viewModel.logSession(elapsedSeconds, selectedMethod, mood)
+                        screenState = BreatheScreenState.PREPARATION
                     }
-                }
+                )
             }
         }
 
@@ -408,9 +217,15 @@ fun BreatheScreen(
         BreatheMethodSelector(
             showMethodPopup = showMethodPopup,
             selectedMethod = selectedMethod,
-            methods = methods,
+            methods = allMethods,
             onDismiss = { showMethodPopup = false },
-            onMethodSelected = { selectedMethod = it }
+            onMethodSelected = {
+                viewModel.updateSelectedMethod(it)
+                showMethodPopup = false
+            },
+            onSaveCustomStyle = { viewModel.addCustomMethod(context, it) },
+            onEditCustomStyle = { oldName, newItem -> viewModel.editCustomMethod(context, oldName, newItem) },
+            onDeleteCustomStyle = { viewModel.deleteCustomMethod(context, it) }
         )
 
         // Calendar Dialog
@@ -431,32 +246,175 @@ fun BreatheScreen(
                 showCalendarDialog = false
             }
         )
+
+        // Insights Dialog
+        BreatheInsightsDialog(
+            showDialog = showInsightsDialog,
+            onDismiss = { showInsightsDialog = false },
+            sessions = sessions
+        )
     }
 }
 
 @Composable
-private fun MoodChip(mood: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else DesignTokens.CardBackground)
-            .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = mood.take(2), fontSize = 22.sp)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = mood.drop(2).trim(),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isSelected) MaterialTheme.colorScheme.primary else DesignTokens.TextSecondary
-            )
+fun BreatheInsightsDialog(
+    showDialog: Boolean,
+    onDismiss: () -> Unit,
+    sessions: List<BreatheSessionEntity>
+) {
+    if (showDialog) {
+        Dialog(onDismissRequest = onDismiss) {
+            val currentView = LocalView.current
+            var window: android.view.Window? = null
+            var parentView = currentView.parent
+            while (parentView != null) {
+                if (parentView is DialogWindowProvider) {
+                    window = parentView.window
+                    break
+                }
+                parentView = parentView.parent
+            }
+            window?.let { w ->
+                w.setBackgroundDrawableResource(android.R.color.transparent)
+                w.decorView.setBackgroundResource(android.R.color.transparent)
+                w.setElevation(0f)
+                w.decorView.elevation = 0f
+            }
+            LunafloraCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AtaraxiaTheme.spacing.Space8)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(AtaraxiaTheme.spacing.Space8),
+                    verticalArrangement = Arrangement.spacedBy(AtaraxiaTheme.spacing.Space16)
+                ) {
+                    Text(
+                        text = "🌿 Breathing Insights",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = DesignTokens.TextPrimary
+                    )
+
+                    val totalSessions = sessions.size
+                    val totalSeconds = sessions.sumOf { it.durationSeconds }
+                    val longestSeconds = sessions.maxOfOrNull { it.durationSeconds } ?: 0
+                    val favoriteMethod = if (sessions.isEmpty()) "None" else sessions.groupBy { it.method }
+                        .maxByOrNull { it.value.size }?.key ?: "None"
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        InsightRow("Total Sessions", "$totalSessions")
+                        InsightRow("Total Time", formatBreatheDuration(totalSeconds))
+                        InsightRow("Favorite Method", favoriteMethod)
+                        InsightRow("Longest Practice", formatBreatheDuration(longestSeconds))
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Weekly Activity (Last 7 Days)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DesignTokens.TextSecondary
+                    )
+                    WeeklyActivityChart(sessions = sessions)
+
+                    AtaraxiaPrimaryButton(
+                        text = "Done",
+                        onClick = onDismiss
+                    )
+                }
+            }
         }
     }
 }
 
-// ── Stats Helpers ──
+@Composable
+private fun InsightRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = DesignTokens.TextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun WeeklyActivityChart(sessions: List<BreatheSessionEntity>) {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val locale = configuration.locales[0]
+    val sdf = SimpleDateFormat("EEE", locale)
+    val daySdf = SimpleDateFormat("yyyyMMdd", locale)
+    
+    val days = remember(sessions) {
+        val list = mutableListOf<Pair<String, Int>>()
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DATE, -6)
+        
+        for (@Suppress("unused") ignored in 0..6) {
+            val dateKey = daySdf.format(cal.time)
+            val dayName = sdf.format(cal.time)
+            val dayMins = sessions.filter { daySdf.format(Date(it.timestamp)) == dateKey }
+                .sumOf { it.durationSeconds } / 60
+            list.add(dayName to dayMins)
+            cal.add(Calendar.DATE, 1)
+        }
+        list
+    }
+
+    val maxMins = days.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp)
+            .padding(top = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        days.forEach { (name, mins) ->
+            val barHeightFraction = mins.toFloat() / maxMins
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(DesignTokens.TextSecondary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(barHeightFraction)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = name, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = DesignTokens.TextSecondary)
+                Text(text = "${mins}m", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+// ── Stats Calculations Helpers ──
 private fun calculateBreatheStreak(sessions: List<BreatheSessionEntity>): Int {
     if (sessions.isEmpty()) return 0
     val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
@@ -526,36 +484,7 @@ private fun calculateMonthBreatheMinutes(sessions: List<BreatheSessionEntity>): 
     return totalSeconds / 60
 }
 
-private fun formatBreatheTime(totalMinutes: Int): String {
-    return when {
-        totalMinutes == 0 -> "0m"
-        totalMinutes < 60 -> "${totalMinutes}m"
-        else -> "${totalMinutes / 60}h ${totalMinutes % 60}m".trimEnd().replace("  ", " ")
-    }
-}
-
-@Composable
-private fun BreatheStatCell(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = DesignTokens.TextSecondary
-        )
-    }
-}
-
-@Composable
-private fun BreatheStatDivider() {
-    Box(
-        modifier = Modifier
-            .height(32.dp)
-            .width(1.dp)
-            .background(DesignTokens.TextSecondary.copy(alpha = 0.2f))
-    )
+private fun formatBreatheDuration(totalSeconds: Int): String = when {
+    totalSeconds < 60 -> "< 1m"
+    else -> { val m = totalSeconds / 60; "$m min" }
 }

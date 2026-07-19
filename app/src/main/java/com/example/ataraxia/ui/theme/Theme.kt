@@ -113,7 +113,7 @@ private val AquaColorScheme = lightColorScheme(
 
 @Composable
 fun AtaraxiaTheme(
-    themeMode: AtaraxiaThemeMode = if (isSystemInDarkTheme()) AtaraxiaThemeMode.FOREST else AtaraxiaThemeMode.SAKURA,
+    themeMode: AtaraxiaThemeMode = if (isSystemInDarkTheme()) AtaraxiaThemeMode.FOREST else AtaraxiaThemeMode.AQUA,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {

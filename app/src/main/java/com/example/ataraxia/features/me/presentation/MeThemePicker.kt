@@ -81,12 +81,12 @@ fun MeThemePicker(
                     }
 
                     val themes = listOf(
-                        ThemeItem("🌸 Sakura", "🌸 Pink accented light mode", "Pink"),
+                        ThemeItem("🌊 Aqua", "🌊 Blue ocean light mode", "Blue"),
                         ThemeItem("🌿 Forest", "🌿 Green accented dark mode", "Green"),
                         ThemeItem("🌙 Cosmos", "🌙 Deep black AMOLED dark mode", "Amoled"),
                         ThemeItem("💮 Serene", "💮 Original calm light mode", "Serene"),
                         ThemeItem("✨ Aurora", "✨ Lavender accented dark mode", "Dark"),
-                        ThemeItem("🌊 Aqua", "🌊 Blue ocean light mode", "Blue")
+                        ThemeItem("🌸 Sakura", "🌸 Pink accented light mode", "Pink")
                     )
 
                     Column(

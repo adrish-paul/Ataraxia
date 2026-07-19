@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
 import com.example.ataraxia.ui.theme.DesignTokens
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.TextFieldValue
 
 @Composable
 fun PrimaryTextField(
@@ -22,7 +24,8 @@ fun PrimaryTextField(
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
     maxLines: Int = 1,
-    maxLength: Int? = null
+    maxLength: Int? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
 ) {
     TextField(
         value = value,
@@ -41,7 +44,53 @@ fun PrimaryTextField(
         modifier = modifier.fillMaxWidth(),
         singleLine = singleLine,
         maxLines = maxLines,
+        keyboardOptions = keyboardOptions,
         shape = MaterialTheme.shapes.medium, // 24dp radius
+        textStyle = MaterialTheme.typography.bodyLarge,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = DesignTokens.CardBackground,
+            unfocusedContainerColor = DesignTokens.CardBackground,
+            disabledContainerColor = DesignTokens.CardBackground.copy(alpha = 0.5f),
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            focusedTextColor = DesignTokens.TextPrimary,
+            unfocusedTextColor = DesignTokens.TextPrimary,
+            cursorColor = DesignTokens.PrimaryAccent
+        )
+    )
+}
+
+@Composable
+fun PrimaryTextField(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    maxLines: Int = 1,
+    maxLength: Int? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
+) {
+    TextField(
+        value = value,
+        onValueChange = {
+            if (maxLength == null || it.text.length <= maxLength) {
+                onValueChange(it)
+            }
+        },
+        placeholder = {
+            Text(
+                text = placeholder,
+                style = MaterialTheme.typography.bodyLarge,
+                color = DesignTokens.TextSecondary.copy(alpha = 0.7f)
+            )
+        },
+        modifier = modifier.fillMaxWidth(),
+        singleLine = singleLine,
+        maxLines = maxLines,
+        keyboardOptions = keyboardOptions,
+        shape = MaterialTheme.shapes.medium,
         textStyle = MaterialTheme.typography.bodyLarge,
         colors = TextFieldDefaults.colors(
             focusedContainerColor = DesignTokens.CardBackground,

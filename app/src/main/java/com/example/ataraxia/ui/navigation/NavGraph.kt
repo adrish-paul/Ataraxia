@@ -19,10 +19,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import kotlinx.coroutines.launch
+import androidx.activity.compose.BackHandler
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -81,13 +86,42 @@ fun AtaraxiaNavGraph() {
     val breatheSecs by breatheViewModel.totalDurationSeconds.collectAsState()
     val focusMins by focusViewModel.totalDurationMinutes.collectAsState()
 
+    val activeDaysCount by mainViewModel.daysActive.collectAsState()
+    val habitStreakCount by mainViewModel.currentHabitStreak.collectAsState()
+    val todayMood by mainViewModel.todayMood.collectAsState()
+    val greeting by mainViewModel.greeting.collectAsState()
+    
+    // Appearance switch states collection
+    val amoledMode by mainViewModel.amoledMode.collectAsState()
+    val dynamicColors by mainViewModel.dynamicColors.collectAsState()
+    val reducedMotion by mainViewModel.reducedMotion.collectAsState()
+    
+    // Privacy & Security switch states collection
+    val biometricsEnabled by mainViewModel.biometricsEnabled.collectAsState()
+    val mindfulUsageEnabled by mainViewModel.mindfulUsagePermission.collectAsState()
+    
+    // Notifications reminders switch states collection
+    val reminderDaily by mainViewModel.reminderDaily.collectAsState()
+    val reminderJournal by mainViewModel.reminderJournal.collectAsState()
+    val reminderBreathe by mainViewModel.reminderBreathe.collectAsState()
+    val reminderFocus by mainViewModel.reminderFocus.collectAsState()
+    val reminderMindfulness by mainViewModel.reminderMindfulness.collectAsState()
+
+    val allBreatheSessions by breatheViewModel.allSessions.collectAsState()
+    val allFocusSessions by focusViewModel.allSessions.collectAsState()
+    val allMoodLogs by mainViewModel.allMoodLogs.collectAsState()
+
     // Track active sub-screen overlay composition states
     var isJournalWriting by remember { mutableStateOf(false) }
     var isBreatheActive by remember { mutableStateOf(false) }
     var isFocusActive by remember { mutableStateOf(false) }
+    var journalInitialPrompt by remember { mutableStateOf("") }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 5 })
+    val coroutineScope = rememberCoroutineScope()
 
     // Scroll-to-top keys: increment when user taps a tab they're already on
     var homeScrollKey by remember { mutableStateOf(0) }
@@ -96,13 +130,7 @@ fun AtaraxiaNavGraph() {
     var focusScrollKey by remember { mutableStateOf(0) }
     var meScrollKey by remember { mutableStateOf(0) }
 
-    val showBottomBar = (currentRoute in listOf(
-        Screen.Home.route,
-        Screen.Journal.route,
-        Screen.Breathe.route,
-        Screen.Focus.route,
-        Screen.Me.route
-    )) && !isJournalWriting && !isBreatheActive && !isFocusActive
+    val showBottomBar = (currentRoute == Screen.Home.route) && !isJournalWriting && !isBreatheActive && !isFocusActive
 
     // Index mapping for horizontal navigation layout direction
     val routes = listOf(
@@ -113,33 +141,35 @@ fun AtaraxiaNavGraph() {
         Screen.Me.route
     )
 
+    val currentTabRoute = routes[pagerState.currentPage]
+
     // Premium EaseOutCubic easing curve matching requested specifications
     val EaseOutCubic = CubicBezierEasing(0.215f, 0.610f, 0.355f, 1.0f)
     val animDuration = 300
 
     val navigateToTab: (String) -> Unit = { route ->
-        if (currentRoute == route) {
-            // Already on this tab — scroll to top instead of re-navigating
-            when (route) {
-                Screen.Home.route    -> homeScrollKey++
-                Screen.Journal.route -> journalScrollKey++
-                Screen.Breathe.route -> breatheScrollKey++
-                Screen.Focus.route   -> focusScrollKey++
-                Screen.Me.route      -> meScrollKey++
+        val index = routes.indexOf(route)
+        if (index != -1) {
+            if (pagerState.currentPage == index) {
+                // Already on this tab — scroll to top instead of re-navigating
+                when (route) {
+                    Screen.Home.route    -> homeScrollKey++
+                    Screen.Journal.route -> journalScrollKey++
+                    Screen.Breathe.route -> breatheScrollKey++
+                    Screen.Focus.route   -> focusScrollKey++
+                    Screen.Me.route      -> meScrollKey++
+                }
+            } else {
+                coroutineScope.launch {
+                    pagerState.animateScrollToPage(index)
+                }
             }
-        } else if (route == Screen.Home.route) {
-            // Navigating to Home: pop everything back to Home
-            navController.navigate(route) {
-                popUpTo(Screen.Home.route) { inclusive = false }
-                launchSingleTop = true
-            }
-        } else {
-            // Navigating to a non-Home tab: back stack is Home -> <tab>
-            navController.navigate(route) {
-                popUpTo(Screen.Home.route) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
+        }
+    }
+
+    BackHandler(enabled = currentRoute == Screen.Home.route && pagerState.currentPage != 0) {
+        coroutineScope.launch {
+            pagerState.animateScrollToPage(0)
         }
     }
 
@@ -361,68 +391,112 @@ fun AtaraxiaNavGraph() {
 
 
                 composable(Screen.Home.route) {
-                    HomeScreen(
-                        name = userName,
-                        isFirstLaunch = isFirstLaunch,
-                        currentThemeMode = themeMode,
-                        onFirstLaunchCompleted = { mainViewModel.completeFirstLaunch() },
-                        onQuickBreathe = { navigateToTab(Screen.Breathe.route) },
-                        onQuickJournal = { navigateToTab(Screen.Journal.route) },
-                        onQuickFocus = { navigateToTab(Screen.Focus.route) },
-                        scrollToTopKey = homeScrollKey
-                    )
-                }
-
-                composable(Screen.Journal.route) {
-                    JournalScreen(
-                        viewModel = journalViewModel,
-                        onWritingModeChanged = { isJournalWriting = it },
-                        scrollToTopKey = journalScrollKey
-                    )
-                }
-
-                composable(Screen.Breathe.route) {
-                    BreatheScreen(
-                        viewModel = breatheViewModel,
-                        onSessionActiveChanged = { isBreatheActive = it },
-                        scrollToTopKey = breatheScrollKey
-                    )
-                }
-
-                composable(Screen.Focus.route) {
-                    FocusScreen(
-                        viewModel = focusViewModel,
-                        onSpaceActiveChanged = { isFocusActive = it },
-                        scrollToTopKey = focusScrollKey
-                    )
-                }
-
-                composable(Screen.Me.route) {
-                    MeScreen(
-                        name = userName,
-                        profileImage = profileImage,
-                        onProfileImageChange = { mainViewModel.updateProfileImage(it) },
-                        currentThemeMode = themeMode,
-                        reflectionCount = reflections.size,
-                        breatheSeconds = breatheSecs,
-                        focusMinutes = focusMins,
-                        appLockEnabled = appLockEnabled,
-                        onAppLockToggle = { enabled, pin ->
-                            mainViewModel.updateAppLockEnabled(enabled)
-                            mainViewModel.updateAppPin(pin)
-                        },
-                        onNameChange = { newName ->
-                            mainViewModel.updateUsername(newName)
-                        },
-                        onThemeChange = { mode -> mainViewModel.updateThemeMode(mode) },
-                        onClearData = {
-                            mainViewModel.clearAllData()
-                            navController.navigate(Screen.Splash.route) {
-                                popUpTo(0) { inclusive = true }
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = !isJournalWriting && !isBreatheActive && !isFocusActive
+                    ) { page ->
+                        when (page) {
+                            0 -> HomeScreen(
+                                mainViewModel = mainViewModel,
+                                onQuickBreathe = { navigateToTab(Screen.Breathe.route) },
+                                onQuickJournal = { prompt ->
+                                    if (prompt != null) {
+                                        journalInitialPrompt = prompt
+                                    } else {
+                                        journalInitialPrompt = ""
+                                    }
+                                    navigateToTab(Screen.Journal.route)
+                                },
+                                onQuickFocus = { navigateToTab(Screen.Focus.route) },
+                                onNavigateToProfile = { navigateToTab(Screen.Me.route) },
+                                scrollToTopKey = homeScrollKey
+                            )
+                            1 -> {
+                                val todayMood by mainViewModel.todayMood.collectAsState()
+                                JournalScreen(
+                                    viewModel = journalViewModel,
+                                    onWritingModeChanged = { writing ->
+                                        isJournalWriting = writing
+                                        if (!writing) {
+                                            journalInitialPrompt = ""
+                                        }
+                                    },
+                                    initialPrompt = journalInitialPrompt,
+                                    scrollToTopKey = journalScrollKey,
+                                    todayMood = todayMood,
+                                    onSaveTodayMood = { mainViewModel.saveTodayMood(it) }
+                                )
                             }
-                        },
-                        scrollToTopKey = meScrollKey
-                    )
+                            2 -> BreatheScreen(
+                                viewModel = breatheViewModel,
+                                onSessionActiveChanged = { isBreatheActive = it },
+                                scrollToTopKey = breatheScrollKey
+                            )
+                            3 -> FocusScreen(
+                                viewModel = focusViewModel,
+                                onSpaceActiveChanged = { isFocusActive = it },
+                                scrollToTopKey = focusScrollKey
+                            )
+                            4 -> MeScreen(
+                                name = userName,
+                                profileImage = profileImage,
+                                onProfileImageChange = { mainViewModel.updateProfileImage(it) },
+                                currentThemeMode = themeMode,
+                                reflectionCount = reflections.size,
+                                breatheSeconds = breatheSecs,
+                                focusMinutes = focusMins,
+                                activeDaysCount = activeDaysCount,
+                                habitStreakCount = habitStreakCount,
+                                todayMood = todayMood,
+                                greetingTitle = greeting.title,
+                                greetingSubtitle = greeting.subtitle,
+                                appLockEnabled = appLockEnabled,
+                                onAppLockToggle = { enabled, pin ->
+                                    mainViewModel.updateAppLockEnabled(enabled)
+                                    mainViewModel.updateAppPin(pin)
+                                },
+                                onNameChange = { newName ->
+                                    mainViewModel.updateUsername(newName)
+                                },
+                                onThemeChange = { mode -> mainViewModel.updateThemeMode(mode) },
+                                onClearData = {
+                                    mainViewModel.clearAllData()
+                                    navController.navigate(Screen.Splash.route) {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                    coroutineScope.launch {
+                                        pagerState.scrollToPage(0)
+                                    }
+                                },
+                                amoledModeEnabled = amoledMode,
+                                onAmoledModeToggle = { mainViewModel.updateAmoledMode(it) },
+                                dynamicColorsEnabled = dynamicColors,
+                                onDynamicColorsToggle = { mainViewModel.updateDynamicColors(it) },
+                                reducedMotionEnabled = reducedMotion,
+                                onReducedMotionToggle = { mainViewModel.updateReducedMotion(it) },
+                                biometricsEnabled = biometricsEnabled,
+                                onBiometricsToggle = { mainViewModel.updateBiometricsEnabled(it) },
+                                mindfulUsageEnabled = mindfulUsageEnabled,
+                                onMindfulUsageToggle = { mainViewModel.updateMindfulUsagePermission(it) },
+                                reminderDailyEnabled = reminderDaily,
+                                onReminderDailyToggle = { mainViewModel.updateReminderDaily(it) },
+                                reminderJournalEnabled = reminderJournal,
+                                onReminderJournalToggle = { mainViewModel.updateReminderJournal(it) },
+                                reminderBreatheEnabled = reminderBreathe,
+                                onReminderBreatheToggle = { mainViewModel.updateReminderBreathe(it) },
+                                reminderFocusEnabled = reminderFocus,
+                                onReminderFocusToggle = { mainViewModel.updateReminderFocus(it) },
+                                reminderMindfulnessEnabled = reminderMindfulness,
+                                onReminderMindfulnessToggle = { mainViewModel.updateReminderMindfulness(it) },
+                                allReflections = reflections,
+                                allBreatheSessions = allBreatheSessions,
+                                allFocusSessions = allFocusSessions,
+                                allMoodLogs = allMoodLogs,
+                                scrollToTopKey = meScrollKey
+                            )
+                        }
+                    }
                 }
                 }
             }
@@ -441,7 +515,7 @@ fun AtaraxiaNavGraph() {
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 FloatingBottomNavigation(
-                    currentRoute = currentRoute ?: Screen.Home.route,
+                    currentRoute = currentTabRoute,
                     onNavigate = { route -> navigateToTab(route) }
                 )
             }

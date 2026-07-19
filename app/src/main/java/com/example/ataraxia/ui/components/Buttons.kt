@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.ataraxia.ui.theme.AtaraxiaTheme
 
 @Composable
@@ -87,7 +89,10 @@ fun AtaraxiaPrimaryButton(
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
             ),
-            modifier = Modifier.padding(vertical = AtaraxiaTheme.spacing.Space8)
+            modifier = Modifier.padding(vertical = AtaraxiaTheme.spacing.Space8),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -132,7 +137,7 @@ fun AtaraxiaSecondaryButton(
         shape = MaterialTheme.shapes.large, // 28dp radius
         border = BorderStroke(1.dp, strokeColor.copy(alpha = 0.8f)),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
             contentColor = strokeColor,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         ),
@@ -143,7 +148,10 @@ fun AtaraxiaSecondaryButton(
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
             ),
-            modifier = Modifier.padding(vertical = AtaraxiaTheme.spacing.Space8)
+            modifier = Modifier.padding(vertical = AtaraxiaTheme.spacing.Space8),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

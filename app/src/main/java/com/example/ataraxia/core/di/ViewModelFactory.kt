@@ -29,6 +29,7 @@ class AtaraxiaViewModelFactory(
         val journalDao = container.database.journalDao()
         val breatheDao = container.database.breatheDao()
         val focusDao = container.database.focusDao()
+        val moodLogDao = container.database.moodLogDao()
 
         // Breathe
         val breatheRepo = BreatheRepositoryImpl(breatheDao)
@@ -41,6 +42,8 @@ class AtaraxiaViewModelFactory(
         val getFocusSessionsUseCase = GetFocusSessionsUseCase(focusRepo)
         val saveFocusSessionUseCase = SaveFocusSessionUseCase(focusRepo)
         val deleteFocusSessionUseCase = DeleteFocusSessionUseCase(focusRepo)
+        val getFocusIntentionsUseCase = com.example.ataraxia.features.focus.domain.GetFocusIntentionsUseCase(focusRepo)
+        val saveFocusIntentionUseCase = com.example.ataraxia.features.focus.domain.SaveFocusIntentionUseCase(focusRepo)
 
         // Journal
         val journalRepo = JournalRepositoryImpl(journalDao)
@@ -54,13 +57,13 @@ class AtaraxiaViewModelFactory(
                 BreatheViewModel(getBreatheSessionsUseCase, saveBreatheSessionUseCase, deleteBreatheSessionUseCase) as T
 
             modelClass.isAssignableFrom(FocusViewModel::class.java) ->
-                FocusViewModel(getFocusSessionsUseCase, saveFocusSessionUseCase, deleteFocusSessionUseCase) as T
+                FocusViewModel(getFocusSessionsUseCase, saveFocusSessionUseCase, deleteFocusSessionUseCase, getFocusIntentionsUseCase, saveFocusIntentionUseCase) as T
 
             modelClass.isAssignableFrom(JournalViewModel::class.java) ->
-                JournalViewModel(getJournalEntriesUseCase, saveJournalEntryUseCase, deleteJournalEntryUseCase, toggleFavoriteUseCase) as T
+                JournalViewModel(getJournalEntriesUseCase, saveJournalEntryUseCase, deleteJournalEntryUseCase, toggleFavoriteUseCase, container.preferences) as T
 
             modelClass.isAssignableFrom(MainViewModel::class.java) ->
-                MainViewModel(container.preferences, journalDao, breatheDao, focusDao) as T
+                MainViewModel(container.preferences, journalDao, breatheDao, focusDao, moodLogDao) as T
 
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

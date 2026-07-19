@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -28,9 +29,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import com.example.ataraxia.data.local.entity.JournalEntryEntity
 import com.example.ataraxia.ui.components.AtaraxiaPrimaryButton
 import com.example.ataraxia.ui.components.AtaraxiaSecondaryButton
@@ -46,14 +59,20 @@ import java.util.Date
 @Composable
 fun JournalDetailDialog(
     entry: JournalEntryEntity?,
+    entries: List<JournalEntryEntity>,
     onDismiss: () -> Unit,
     onToggleFavorite: (JournalEntryEntity) -> Unit,
     onDeleteEntry: (Long) -> Unit
 ) {
     if (entry == null) return
 
+    val liveEntry = remember(entry, entries) {
+        entries.firstOrNull { it.id == entry.id } ?: entry
+    }
+
     var detailMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var playingDetailPath by remember { mutableStateOf<String?>(null) }
+    var zoomImageIndex by remember { mutableStateOf<Int?>(null) }
 
     DisposableEffect(entry) {
         onDispose {
@@ -102,17 +121,17 @@ fun JournalDetailDialog(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = entry.mood,
+                            text = liveEntry.mood,
                             style = MaterialTheme.typography.headlineLarge
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(onClick = {
-                            onToggleFavorite(entry)
+                            onToggleFavorite(liveEntry)
                         }) {
                             Icon(
-                                imageVector = if (entry.isFavorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                imageVector = if (liveEntry.isFavorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
                                 contentDescription = "Toggle Favorite",
-                                tint = if (entry.isFavorite) Color(0xFFFFB300) else DesignTokens.TextSecondary
+                                tint = if (liveEntry.isFavorite) MaterialTheme.colorScheme.primary else DesignTokens.TextSecondary
                             )
                         }
                     }
@@ -141,7 +160,7 @@ fun JournalDetailDialog(
                         .padding(end = 8.dp)
                 ) {
                     Text(
-                        text = entry.title.ifBlank { "Untitled Reflection" },
+                        text = liveEntry.title.ifBlank { "Untitled Reflection" },
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         color = DesignTokens.TextPrimary
                     )
@@ -150,20 +169,20 @@ fun JournalDetailDialog(
 
                     val locale = LocalConfiguration.current.locales[0]
                     val sdf = remember(locale) { SimpleDateFormat("MMM dd, yyyy", locale) }
-                    val formattedDate = remember(entry.timestamp, sdf) { sdf.format(Date(entry.timestamp)) }
+                    val formattedDate = remember(liveEntry.timestamp, sdf) { sdf.format(Date(liveEntry.timestamp)) }
                     Text(
-                        text = formattedDate + if (entry.weatherContext.isNotBlank()) " • ${entry.weatherContext}" else "",
+                        text = formattedDate + if (liveEntry.weatherContext.isNotBlank()) " • ${liveEntry.weatherContext}" else "",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
 
-                    if (entry.tags.isNotEmpty()) {
+                    if (liveEntry.tags.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            entry.tags.split(",").filter { it.isNotBlank() }.forEach { tag ->
+                            liveEntry.tags.split(",").filter { it.isNotBlank() }.forEach { tag ->
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
@@ -178,15 +197,16 @@ fun JournalDetailDialog(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    if (entry.imagePath.isNotEmpty()) {
-                        val imagePaths = entry.imagePath.split(",").filter { it.isNotBlank() }
+                    if (liveEntry.imagePath.isNotEmpty()) {
+                        val imagePaths = liveEntry.imagePath.split(",").filter { it.isNotBlank() }
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            imagePaths.forEach { path ->
+                            imagePaths.forEachIndexed { index, path ->
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(180.dp)
                                         .clip(MaterialTheme.shapes.medium)
+                                        .clickable { zoomImageIndex = index }
                                 ) {
                                     val bitmapState = remember(path) { mutableStateOf<ImageBitmap?>(null) }
                                     LaunchedEffect(path) {
@@ -224,8 +244,8 @@ fun JournalDetailDialog(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    if (entry.voicePath.isNotEmpty()) {
-                        val voicePaths = entry.voicePath.split(",").filter { it.isNotBlank() }
+                    if (liveEntry.voicePath.isNotEmpty()) {
+                        val voicePaths = liveEntry.voicePath.split(",").filter { it.isNotBlank() }
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             voicePaths.forEachIndexed { index, path ->
                                 val isPlayingThis = playingDetailPath == path
@@ -286,8 +306,8 @@ fun JournalDetailDialog(
                     }
 
                     Text(
-                        text = entry.content,
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = parseMarkdown(liveEntry.content),
+                        style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
                         color = DesignTokens.TextSecondary,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -303,13 +323,13 @@ fun JournalDetailDialog(
                         AtaraxiaSecondaryButton(
                             text = "Delete",
                             onClick = {
-                                entry.imagePath.split(",").forEach { path ->
+                                liveEntry.imagePath.split(",").forEach { path ->
                                     StorageHelper.deleteFile(path)
                                 }
-                                entry.voicePath.split(",").forEach { path ->
+                                liveEntry.voicePath.split(",").forEach { path ->
                                     StorageHelper.deleteFile(path)
                                 }
-                                onDeleteEntry(entry.id)
+                                onDeleteEntry(liveEntry.id)
                                 onDismiss()
                             }
                         )
@@ -326,6 +346,155 @@ fun JournalDetailDialog(
                     }
                 }
             }
+        }
+
+        zoomImageIndex?.let { startIndex ->
+            val imagePaths = remember(liveEntry.imagePath) { liveEntry.imagePath.split(",").filter { it.isNotBlank() } }
+            Dialog(
+                onDismissRequest = { zoomImageIndex = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                val pagerState = rememberPagerState(initialPage = startIndex, pageCount = { imagePaths.size })
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                ) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize()
+                    ) { pageIndex ->
+                        val path = imagePaths[pageIndex]
+                        var scale by remember { mutableStateOf(1f) }
+                        var offset by remember { mutableStateOf(Offset.Zero) }
+
+                        val bitmapState = remember(path) { mutableStateOf<ImageBitmap?>(null) }
+                        LaunchedEffect(path) {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val file = File(path)
+                                    if (file.exists()) {
+                                        bitmapState.value = BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    detectTransformGestures { _, pan, zoom, _ ->
+                                        scale = (scale * zoom).coerceIn(1f, 5f)
+                                        offset = if (scale > 1f) offset + pan else Offset.Zero
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            bitmapState.value?.let { bitmap ->
+                                Image(
+                                    bitmap = bitmap,
+                                    contentDescription = "Zoomed Photo attachment",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .graphicsLayer(
+                                            scaleX = scale,
+                                            scaleY = scale,
+                                            translationX = offset.x,
+                                            translationY = offset.y
+                                        ),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { zoomImageIndex = null },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(24.dp)
+                            .size(40.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close zoom viewer",
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun parseMarkdown(text: String): AnnotatedString {
+    val builder = AnnotatedString.Builder()
+    val lines = text.split("\n")
+    lines.forEachIndexed { i, line ->
+        if (line.startsWith("### ")) {
+            val headerText = line.substring(4)
+            builder.pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary))
+            builder.append(headerText)
+            builder.pop()
+        } else if (line.startsWith("- ") || line.startsWith("* ")) {
+            val itemText = line.substring(2)
+            builder.append("  •  ")
+            appendInlineFormattedText(builder, itemText)
+        } else if (line.matches("^\\d+\\.\\s.*".toRegex())) {
+            val dotIdx = line.indexOf('.')
+            val numberStr = line.substring(0, dotIdx + 1)
+            val itemText = line.substring(dotIdx + 2)
+            builder.append("  $numberStr  ")
+            appendInlineFormattedText(builder, itemText)
+        } else if (line.startsWith("> ")) {
+            val quoteText = line.substring(2)
+            builder.pushStyle(SpanStyle(fontStyle = FontStyle.Italic, color = DesignTokens.TextSecondary.copy(alpha = 0.8f)))
+            builder.append("“ $quoteText ”")
+            builder.pop()
+        } else if (line == "---") {
+            builder.pushStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)))
+            builder.append("────────────────────────────────")
+            builder.pop()
+        } else {
+            appendInlineFormattedText(builder, line)
+        }
+        if (i < lines.size - 1) {
+            builder.append("\n")
+        }
+    }
+    return builder.toAnnotatedString()
+}
+
+private fun appendInlineFormattedText(builder: AnnotatedString.Builder, text: String) {
+    var isBold = false
+    var isItalic = false
+    var isUnderline = false
+
+    var i = 0
+    while (i < text.length) {
+        if (text.startsWith("**", i)) {
+            isBold = !isBold
+            i += 2
+        } else if (text.startsWith("__", i)) {
+            isUnderline = !isUnderline
+            i += 2
+        } else if (text.startsWith("*", i)) {
+            isItalic = !isItalic
+            i += 1
+        } else {
+            val weight = if (isBold) FontWeight.Bold else FontWeight.Normal
+            val style = if (isItalic) FontStyle.Italic else FontStyle.Normal
+            val dec = if (isUnderline) TextDecoration.Underline else TextDecoration.None
+
+            builder.pushStyle(SpanStyle(fontWeight = weight, fontStyle = style, textDecoration = dec))
+            builder.append(text[i].toString())
+            builder.pop()
+            i++
         }
     }
 }

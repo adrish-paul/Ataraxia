@@ -2,6 +2,7 @@ package com.example.ataraxia.features.focus.data
 
 import com.example.ataraxia.data.local.dao.FocusDao
 import com.example.ataraxia.data.local.entity.FocusSessionEntity
+import com.example.ataraxia.data.local.entity.FocusIntentionEntity
 import com.example.ataraxia.features.focus.domain.FocusRepository
 import kotlinx.coroutines.flow.Flow
 
@@ -18,5 +19,14 @@ class FocusRepositoryImpl(
     }
     override suspend fun clearAllSessions() {
         focusDao.clearAllSessions()
+    }
+
+    // Custom intentions implementation
+    override fun getAllCustomIntentions(): Flow<List<FocusIntentionEntity>> = focusDao.getAllCustomIntentions()
+    override suspend fun insertIntention(intention: FocusIntentionEntity) {
+        focusDao.insertIntention(intention)
+    }
+    override suspend fun deleteIntention(name: String) {
+        focusDao.deleteIntention(name)
     }
 }

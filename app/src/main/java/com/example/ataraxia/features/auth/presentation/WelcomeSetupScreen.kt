@@ -99,7 +99,7 @@ fun WelcomeSetupScreen(
         AtaraxiaTextButton(
             text = "Skip",
             onClick = {
-                onGetStarted("Guest")
+                onGetStarted("User")
             }
         )
     }
